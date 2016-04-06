@@ -1,0 +1,107 @@
+!obj:pylearn2.train.Train {
+    dataset: &train !obj:siamesenet.GenerateAdjacentPairsDataset {   
+        which_set: 'train',
+        xfile: 'lincstrainset.csv',
+        grpfile: 'lincstraingroup.csv'
+    },
+    model: !obj:pylearn2.models.mlp.MLP {
+        layers: [ 
+                 !obj:siamesenet.NoisySigmoid {
+                     layer_name: 'h1',
+                     dim: 400,
+                     sparse_init: 5,
+                     noisesd: 0.5,
+                     max_col_norm: 5.
+                 },  
+                 !obj:siamesenet.NoisySigmoid {
+                     layer_name: 'h2',
+                     dim: 100,
+                     sparse_init: 5,
+                     noisesd: .5,
+                     max_col_norm: 5.
+                 } , 
+                 !obj:siamesenet.SiameseMetric {           
+                     layer_name: 'y',
+                     costfn: 'margin',
+                     irange: .01,
+                     constw: True,
+                     costparam: 5.
+                 }
+                ],
+        nvis: 978,
+        batch_size: 250
+    },
+    algorithm: !obj:pylearn2.training_algorithms.sgd.SGD {
+        batch_size: 250,
+        learning_rate: .005,
+        monitoring_dataset:
+            {
+                'train' : !obj:siamesenet.GenerateAdjacentPairsDataset {
+                              which_set: 'train',
+                              xfile: 'lincstrainset.csv',
+                              grpfile: 'lincstraingroup.csv',
+                              start: 0,
+                              stop: 10000
+                          },
+                'test' : !obj:siamesenet.GenerateAdjacentPairsDataset {
+                              xfile: 'lincstrainset.csv',
+                              grpfile: 'lincstraingroup.csv',
+                              which_set: 'valid',
+                              start: 0,
+                              stop: 10000
+                          },
+                'valid'  : !obj:siamesenet.GenerateAdjacentPairsDataset {
+                              which_set: 'valid',
+                              xfile: 'lincstrainset.csv',
+                              grpfile: 'lincstraingroup.csv',
+                              start: 10000,
+                              stop: 20000
+                          }
+            },
+        cost: !obj:pylearn2.costs.cost.SumOfCosts { costs: [
+            !obj:pylearn2.costs.mlp.dropout.Dropout {
+                per_example: False,
+                default_input_include_prob: .75,
+                default_input_scale: 1.33,
+                input_include_probs: { 'h1':.5,'h2':.67,'y' : 1. },
+                input_scales: { 'h1':2.,'h2':1.5,'y': 1. }
+            }
+            , 
+            !obj:pylearn2.costs.mlp.Default {
+            }
+            , 
+            !obj:pylearn2.costs.mlp.L1WeightDecay {
+                 coeffs: {'h0':1e-6,'h1':6e-7,'h2':3e-7,'y':0.}
+            }
+            
+            ]
+        },
+        learning_rule: !obj:pylearn2.training_algorithms.learning_rule.RMSProp {
+            decay: .95
+        },
+        termination_criterion: !obj:pylearn2.termination_criteria.And {
+            criteria: [
+                !obj:pylearn2.termination_criteria.MonitorBased {
+                    channel_name: "train_y_01_loss",
+                    prop_decrease: 0.,
+                    N: 10 
+                },
+                !obj:pylearn2.termination_criteria.EpochCounter {
+                    max_epochs: 500
+                }
+            ]
+        }
+    },
+    extensions: [
+        !obj:pylearn2.train_extensions.best_params.MonitorBasedSaveBest {
+             channel_name: 'test_y_01_loss',
+             save_path: "siamese1_best.pkl"
+        }
+        ,!obj:pylearn2.training_algorithms.sgd.MonitorBasedLRAdjuster {
+            channel_name: 'train_y_01_loss',
+            grow_amt: 1.1,
+            shrink_amt: 0.9,
+            dataset_name: 'train'
+        }
+    ]
+}
