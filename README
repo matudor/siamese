@@ -1,7 +1,9 @@
-Siamese network implementation
+* Siamese network implementation
 
 In support of manuscript Filzen et al.
 
 MIT license.
 
 No guarantees are made for the software in this repository, and no support is offered.  
+
+See .ipynb file for data preparation from GEO source and overview of subsequent steps.
